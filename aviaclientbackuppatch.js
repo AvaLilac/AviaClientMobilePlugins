@@ -3,15 +3,32 @@
   window.__aviaclientbackuppatch__ = true;
 
   function importFromText(text, onDone){
+    let cleaned = text.trim();
+
+    cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/```$/,"").trim();
     try {
-      const data = JSON.parse(text);
+      const data = JSON.parse(cleaned);
       let count = 0;
       for(const [k,v] of Object.entries(data)){
         localStorage.setItem(k,v);
         count++;
       }
       onDone(null, count);
-    } catch(err){ onDone(err); }
+      return;
+    } catch(_){}
+
+    try {
+      const unescaped = JSON.parse('"' + cleaned.replace(/^"|"$/g,"") + '"');
+      const data = JSON.parse(unescaped);
+      let count = 0;
+      for(const [k,v] of Object.entries(data)){
+        localStorage.setItem(k,v);
+        count++;
+      }
+      onDone(null, count);
+      return;
+    } catch(_){}
+    onDone(new Error("invalid"));
   }
 
   function patch(panel){
@@ -55,7 +72,7 @@
       const text = textarea.value.trim();
       if(!text){ status.textContent = "✗ Textarea is empty"; return; }
       importFromText(text, (err, count) => {
-        status.textContent = err ? "✗ Invalid JSON" : `✓ Imported ${count} keys`;
+        status.textContent = err ? "✗ Invalid JSON — check your text" : `✓ Imported ${count} keys`;
         if(!err) textarea.value = "";
       });
     });
@@ -75,7 +92,5 @@
 
   const observer = new MutationObserver(tryPatch);
   observer.observe(document.body, { childList:true, subtree:true });
-
-  // Also try immediately in case it's already in the DOM
   tryPatch();
 })();
