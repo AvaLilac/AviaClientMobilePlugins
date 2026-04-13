@@ -2,26 +2,36 @@
   if(window.__US_BACKUP_PATCH_JS__) return;
   window.__US_BACKUP_PATCH_JS__ = true;
 
-  function importFromText(text, onDone){
-    let cleaned = text.trim();
-    // Strip markdown code fences
-    cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
-    // Replace escaped quotes that phones paste in
-    cleaned = cleaned.replace(/&quot;/g, '"');
-    // Replace \" with actual "  (but only outside of already valid structure)
-    cleaned = cleaned.replace(/\\"/g, '"');
+  function fixText(text){
+    let s = text.trim();
+
+    s = s.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
+
+    try { JSON.parse(s); return s; } catch(_){}
+
+    try { JSON.parse(s.replace(/\\"/g, '"')); return s.replace(/\\"/g, '"'); } catch(_){}
+
+    try { JSON.parse(s.replace(/&quot;/g, '"')); return s.replace(/&quot;/g, '"'); } catch(_){}
 
     try {
-      const data = JSON.parse(cleaned);
+      const t = s.replace(/&quot;/g, '"').replace(/\\"/g, '"');
+      JSON.parse(t); return t;
+    } catch(_){}
+    return null;
+  }
+
+  function importFromText(text, onDone){
+    const fixed = fixText(text);
+    if(!fixed){ onDone(new Error("invalid")); return; }
+    try {
+      const data = JSON.parse(fixed);
       let count = 0;
       for(const [k,v] of Object.entries(data)){
         localStorage.setItem(k,v);
         count++;
       }
       onDone(null, count);
-    } catch(err){
-      onDone(err);
-    }
+    } catch(err){ onDone(err); }
   }
 
   function patch(panel){
@@ -65,7 +75,7 @@
       const text = textarea.value.trim();
       if(!text){ status.textContent = "✗ Textarea is empty"; return; }
       importFromText(text, (err, count) => {
-        status.textContent = err ? "✗ Invalid JSON — check your text" : `✓ Imported ${count} keys`;
+        status.textContent = err ? "✗ Could not fix JSON — check your text" : `✓ Imported ${count} keys`;
         if(!err) textarea.value = "";
       });
     });
