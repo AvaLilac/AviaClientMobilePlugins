@@ -1,11 +1,16 @@
 (function(){
-  if(window.__aviaclientbackuppatch__) return;
-  window.__aviaclientbackuppatch__ = true;
+  if(window.__US_BACKUP_PATCH_JS__) return;
+  window.__US_BACKUP_PATCH_JS__ = true;
 
   function importFromText(text, onDone){
     let cleaned = text.trim();
+    // Strip markdown code fences
+    cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
+    // Replace escaped quotes that phones paste in
+    cleaned = cleaned.replace(/&quot;/g, '"');
+    // Replace \" with actual "  (but only outside of already valid structure)
+    cleaned = cleaned.replace(/\\"/g, '"');
 
-    cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/```$/,"").trim();
     try {
       const data = JSON.parse(cleaned);
       let count = 0;
@@ -14,21 +19,9 @@
         count++;
       }
       onDone(null, count);
-      return;
-    } catch(_){}
-
-    try {
-      const unescaped = JSON.parse('"' + cleaned.replace(/^"|"$/g,"") + '"');
-      const data = JSON.parse(unescaped);
-      let count = 0;
-      for(const [k,v] of Object.entries(data)){
-        localStorage.setItem(k,v);
-        count++;
-      }
-      onDone(null, count);
-      return;
-    } catch(_){}
-    onDone(new Error("invalid"));
+    } catch(err){
+      onDone(err);
+    }
   }
 
   function patch(panel){
